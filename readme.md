@@ -2,6 +2,8 @@
 
 A simple tool to manage your project's gitignore files from the command line.
 
+[![asciicast](https://asciinema.org/a/84hL2l0AULc6oxdCUZ1I2hgLE.svg)](https://asciinema.org/a/84hL2l0AULc6oxdCUZ1I2hgLE)
+
 ## About
 
 gitignore downloads language specific `.gitignore` files from gitignore.io

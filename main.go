@@ -51,11 +51,9 @@ func init() {
 }
 
 func main() {
-
 	ensureLanguageFileExists(langFilePath)
 
 	l, err := readline.NewEx(&readline.Config{
-		// Prompt:          "\033[31m»\033[0m ",
 		Prompt:          "\033[36mgitignore\033[0m ",
 		HistoryFile:     "/tmp/readline.tmp",
 		AutoComplete:    completer,
@@ -106,40 +104,41 @@ func main() {
 			case strings.HasPrefix(line, "append"):
 				line = strings.TrimSpace(line[6:])
 				allLangs := strings.Join(currentLangs(".gitignore")(""), " ")
-				fmt.Println("Old: " + allLangs)
-				fmt.Println("New: " + allLangs + " " + line)
 				os.Remove(".gitignore")
+
+				fmt.Println("Old: " + strings.ToLower(allLangs))
+				fmt.Println("New: " + strings.ToLower(allLangs) + " " + strings.ToLower(line))
+
 				path, err := createGitignore(allLangs + " " + line)
 				if err != nil {
 					fmt.Println(err)
 				} else {
 					fmt.Println("Gitignore updated at " + path)
 				}
-
 			case strings.HasPrefix(line, "delete"):
 				line = strings.TrimSpace(line[6:])
 				diff := getDifference(line)
-				err := os.Remove(".gitignore")
-				path, err := createGitignore(diff)
-				if err != nil {
+				os.Remove(".gitignore")
+
+				if path, err := createGitignore(diff); err != nil {
 					fmt.Println(err)
 				} else {
 					fmt.Println("Gitignore updated at " + path)
 				}
 			case strings.HasPrefix(line, "refresh"):
 				langs := strings.Join(currentLangs(".gitignore")(""), " ")
-				fmt.Println("Langugages: " + langs)
 				os.Remove(".gitignore")
-				path, err := createGitignore(langs)
-				if err != nil {
+
+				fmt.Println("Langugages: " + langs)
+
+				if path, err := createGitignore(langs); err != nil {
 					fmt.Println(err)
 				} else {
 					fmt.Println("Gitignore updated at " + path)
 				}
 			}
 		case line == "remove":
-			err := os.Remove(".gitignore")
-			if err != nil {
+			if err := os.Remove(".gitignore"); err != nil {
 				fmt.Println("Couldn't find an existing .gitignore file")
 			} else {
 				fmt.Println("Existing gitignore file removed")
@@ -154,6 +153,7 @@ func main() {
 	}
 }
 
+// usage displays program instructions
 func usage() {
 	// io.WriteString(w, completer.Tree("    "))
 	fmt.Print(`commands:
@@ -191,19 +191,20 @@ func getDifference(input string) string {
 	output := strings.Join(allLangs, " ")
 
 	for _, lang := range removeLangs {
-		fmt.Println("replacing" + lang)
 		output = strings.ReplaceAll(output, strings.ToUpper(lang[:1])+lang[1:], "")
 	}
 
 	output = strings.TrimSpace(output)
 	output = strings.ReplaceAll(output, "  ", " ")
-	fmt.Println("Old: " + strings.Join(allLangs, " "))
-	fmt.Println("New: " + output)
+	fmt.Println("Old: " + strings.ToLower(strings.Join(allLangs, " ")))
+	fmt.Println("New: " + strings.ToLower(output))
 
 	return output
 }
 
 // currentLangs parses the existing .gitignore languages
+// Searches for language comments inside the file "### Java ###"
+// Sometimes languages have adittional patches "### Java Patch ###"; ignore these
 func currentLangs(path string) func(string) []string {
 	return func(line string) []string {
 		file, err := os.Open(path)
@@ -215,6 +216,7 @@ func currentLangs(path string) func(string) []string {
 		langs := make([]string, 0)
 
 		scanner := bufio.NewScanner(file)
+
 		for scanner.Scan() {
 			temp := scanner.Text()
 			if strings.HasPrefix(temp, "###") && strings.HasSuffix(temp, "###") && !strings.Contains(temp, "Patch") {
