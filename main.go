@@ -56,7 +56,7 @@ func main() {
 
 	l, err := readline.NewEx(&readline.Config{
 		// Prompt:          "\033[31m»\033[0m ",
-		Prompt:          "\033[31mgitignore\033[0m ",
+		Prompt:          "\033[36mgitignore\033[0m ",
 		HistoryFile:     "/tmp/readline.tmp",
 		AutoComplete:    completer,
 		InterruptPrompt: "^C",
@@ -144,6 +144,8 @@ func main() {
 			} else {
 				fmt.Println("Existing gitignore file removed")
 			}
+		case line == "exit":
+			os.Exit(0)
 		case line == "help":
 			fallthrough
 		default:
@@ -189,7 +191,8 @@ func getDifference(input string) string {
 	output := strings.Join(allLangs, " ")
 
 	for _, lang := range removeLangs {
-		output = strings.ReplaceAll(output, lang, "")
+		fmt.Println("replacing" + lang)
+		output = strings.ReplaceAll(output, strings.ToUpper(lang[:1])+lang[1:], "")
 	}
 
 	output = strings.TrimSpace(output)
