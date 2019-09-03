@@ -45,7 +45,8 @@ func init() {
 			readline.PcItem("delete",
 				readline.PcItemDynamic(currentLangs(".gitignore"),
 					readline.PcItemDynamic(currentLangs(".gitignore"),
-						readline.PcItemDynamic(currentLangs(".gitignore")))))),
+						readline.PcItemDynamic(currentLangs(".gitignore"))))),
+			readline.PcItem("refresh")),
 		readline.PcItem("remove"))
 }
 
@@ -82,6 +83,8 @@ func main() {
 		}
 
 		line = strings.TrimSpace(line)
+		line = strings.ToLower(line)
+
 		switch {
 		case line == "refresh":
 			fmt.Println("Refreshing gitignore languages cache")
@@ -123,6 +126,16 @@ func main() {
 				} else {
 					fmt.Println("Gitignore updated at " + path)
 				}
+			case strings.HasPrefix(line, "refresh"):
+				langs := strings.Join(currentLangs(".gitignore")(""), " ")
+				fmt.Println("Langugages: " + langs)
+				os.Remove(".gitignore")
+				path, err := createGitignore(langs)
+				if err != nil {
+					fmt.Println(err)
+				} else {
+					fmt.Println("Gitignore updated at " + path)
+				}
 			}
 		case line == "remove":
 			err := os.Remove(".gitignore")
@@ -134,15 +147,21 @@ func main() {
 		case line == "help":
 			fallthrough
 		default:
-			// TODO: Upgrade usage clause to be more detailed
-			usage(l.Stderr())
+			usage()
 		}
 	}
 }
 
-func usage(w io.Writer) {
-	io.WriteString(w, "commands:\n")
-	io.WriteString(w, completer.Tree("    "))
+func usage() {
+	// io.WriteString(w, completer.Tree("    "))
+	fmt.Print(`commands:
+	refresh -- update cache of available languages
+	create -- create new gitignore file (autocomplete with tab)
+	modify -- update an existing gitignore file
+	├── append -- add new languages to gitignore (autocomplete with tab)
+	├── delete -- remove languages from gitignore (autocomplete with tab)
+	├── refresh -- refresh contents of gitignore 
+	remove -- delete gitignore`)
 }
 
 // availableLangs parses the languages file to enable language autocompletion
