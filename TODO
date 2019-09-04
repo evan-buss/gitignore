@@ -1,19 +1,6 @@
 Proposed Usage
 
-gitignore
-  - Show all commands
+Future Upgrades
 
-gitignore list
-  - List all available languages
-
-gitignore search [langage name]
-  - Search for a specific language
-
-gitignore create
-  - Interactive way to generate file. 
-
-gitignore create [languages, here, comma, separated]
-  - Quick way to generate file if you know the languages
-
-gitigore remove
-  - Delete .gitignore file
+- Create a syntax that allows users to modify the gitignore manually
+  - The parser should save their changes between updates

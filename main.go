@@ -2,15 +2,12 @@ package main
 
 import (
 	"bufio"
-	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
-	"path/filepath"
-	"sort"
 	"strings"
 
 	"github.com/chzyer/readline"
@@ -51,7 +48,10 @@ func init() {
 }
 
 func main() {
-	ensureLanguageFileExists(langFilePath)
+	checkForLanguageCache(langFilePath)
+	gitignoreFile := checkForGitignore(".gitignore")
+
+	// gitignoreFile := &gitignore{langages: currentLangs(:)}
 
 	l, err := readline.NewEx(&readline.Config{
 		Prompt:          "\033[36mgitignore\033[0m ",
@@ -79,91 +79,32 @@ func main() {
 		} else if err == io.EOF {
 			break
 		}
+		parseArguments(line, &gitignoreFile)
+	}
+}
 
-		line = strings.TrimSpace(line)
-		line = strings.ToLower(line)
-
-		switch {
-		case line == "refresh":
-			fmt.Println("Refreshing gitignore languages cache")
-			refreshLanguages(langFilePath)
-		case strings.HasPrefix(line, "create"):
-			line := strings.TrimSpace(line[6:])
-
-			if len(line) > 0 {
-				path, err := createGitignore(line)
-				if err != nil {
-					fmt.Println(err)
-				} else {
-					fmt.Println("File created at " + path)
-				}
-			}
-		case strings.HasPrefix(line, "modify"):
-			line := strings.TrimSpace(line[6:])
-			switch {
-			case strings.HasPrefix(line, "append"):
-				line = strings.TrimSpace(line[6:])
-				allLangs := strings.Join(currentLangs(".gitignore")(""), " ")
-				os.Remove(".gitignore")
-
-				fmt.Println("Old: " + strings.ToLower(allLangs))
-				fmt.Println("New: " + strings.ToLower(allLangs) + " " + strings.ToLower(line))
-
-				path, err := createGitignore(allLangs + " " + line)
-				if err != nil {
-					fmt.Println(err)
-				} else {
-					fmt.Println("Gitignore updated at " + path)
-				}
-			case strings.HasPrefix(line, "delete"):
-				line = strings.TrimSpace(line[6:])
-				diff := getDifference(line)
-				os.Remove(".gitignore")
-
-				if path, err := createGitignore(diff); err != nil {
-					fmt.Println(err)
-				} else {
-					fmt.Println("Gitignore updated at " + path)
-				}
-			case strings.HasPrefix(line, "refresh"):
-				langs := strings.Join(currentLangs(".gitignore")(""), " ")
-				os.Remove(".gitignore")
-
-				fmt.Println("Langugages: " + langs)
-
-				if path, err := createGitignore(langs); err != nil {
-					fmt.Println(err)
-				} else {
-					fmt.Println("Gitignore updated at " + path)
-				}
-			}
-		case line == "remove":
-			if err := os.Remove(".gitignore"); err != nil {
-				fmt.Println("Couldn't find an existing .gitignore file")
-			} else {
-				fmt.Println("Existing gitignore file removed")
-			}
-		case line == "exit":
-			os.Exit(0)
-		case line == "help":
-			fallthrough
-		default:
-			usage()
+// checkForLanguageCache checks if the ~/.cache/gitignore_languages.txt exists
+// If not, it redownloads it. This file is parsed for language autocompletion
+func checkForLanguageCache(path string) {
+	if _, err := os.Stat(path); err != nil {
+		if os.IsNotExist(err) {
+			refreshLanguages(path)
 		}
 	}
 }
 
-// usage displays program instructions
-func usage() {
-	// io.WriteString(w, completer.Tree("    "))
-	fmt.Print(`commands:
-	refresh -- update cache of available languages
-	create -- create new gitignore file (autocomplete with tab)
-	modify -- update an existing gitignore file
-	├── append -- add new languages to gitignore (autocomplete with tab)
-	├── delete -- remove languages from gitignore (autocomplete with tab)
-	├── refresh -- refresh contents of gitignore 
-	remove -- delete gitignore`)
+// Load internal gitignore object from existing file or create new empty object
+func checkForGitignore(path string) Gitignore {
+	if _, err := os.Stat(path); err != nil {
+		if os.IsNotExist(err) {
+			return Gitignore{}
+		}
+	}
+	body, _ := ioutil.ReadFile(".gitignore")
+	return Gitignore{
+		languages: currentLangs(".gitignore")(""),
+		content:   string(body),
+	}
 }
 
 // availableLangs parses the languages file to enable language autocompletion
@@ -175,31 +116,6 @@ func availableLangs(path string) func(string) []string {
 		}
 		return strings.Split(string(content), ",")
 	}
-}
-
-// getDifference takes a string containing the languages that should be removed
-//   and returns which languages should be kept
-//  Ex) Gitignore contains "Java Intellij Python" -> removeLangs = "Intellij Java"
-//      getDifference returns "Python"
-func getDifference(input string) string {
-	allLangs := currentLangs(".gitignore")("")
-	removeLangs := strings.Split(input, " ")
-
-	sort.Strings(allLangs)
-	sort.Strings(removeLangs)
-
-	output := strings.Join(allLangs, " ")
-
-	for _, lang := range removeLangs {
-		output = strings.ReplaceAll(output, strings.ToUpper(lang[:1])+lang[1:], "")
-	}
-
-	output = strings.TrimSpace(output)
-	output = strings.ReplaceAll(output, "  ", " ")
-	fmt.Println("Old: " + strings.ToLower(strings.Join(allLangs, " ")))
-	fmt.Println("New: " + strings.ToLower(output))
-
-	return output
 }
 
 // currentLangs parses the existing .gitignore languages
@@ -214,39 +130,31 @@ func currentLangs(path string) func(string) []string {
 		defer file.Close()
 
 		langs := make([]string, 0)
-
 		scanner := bufio.NewScanner(file)
 
 		for scanner.Scan() {
 			temp := scanner.Text()
-			if strings.HasPrefix(temp, "###") && strings.HasSuffix(temp, "###") && !strings.Contains(temp, "Patch") {
-				langs = append(langs, strings.TrimSpace(strings.ReplaceAll(temp, "#", "")))
+			if strings.HasPrefix(temp, "###") &&
+				strings.HasSuffix(temp, "###") &&
+				!strings.Contains(temp, "Patch") {
+				temp = strings.ReplaceAll(temp, "#", "")
+				temp = strings.TrimSpace(temp)
+				temp = strings.ToLower(temp)
+				langs = append(langs, temp)
 			}
 		}
 
 		if err := scanner.Err(); err != nil {
 			log.Fatal(err)
 		}
-
 		return langs
-	}
-}
-
-// ensureLanguageFileExists checks if the ~/.cache/gitignore_languages.txt exists
-// If not, it redownloads it. This file is parsed for language autocompletion
-func ensureLanguageFileExists(path string) {
-	if _, err := os.Stat(path); err != nil {
-		if os.IsNotExist(err) {
-			fmt.Println("Downloading avaiable .gitignore " +
-				"languages to ~/.cache/gitignore_languages.txt")
-			refreshLanguages(path)
-		}
 	}
 }
 
 // refreshLanguages downloads a fresh copy of the available languages
 // The language file is saved to ~/.cache/gitignore_languages.txt
 func refreshLanguages(path string) {
+	fmt.Println("Downloading available languages.")
 
 	resp, err := http.Get("https://gitignore.io/api/list")
 	if err != nil {
@@ -264,35 +172,4 @@ func refreshLanguages(path string) {
 	if err != nil {
 		log.Fatal("Unable to create new file.")
 	}
-}
-
-// createGitignore downloads a .gitignore file to the current directory
-// languages - space separated list of languages to be included in .gitignore
-// Fails if a .gitignore file already exists.
-func createGitignore(languages string) (string, error) {
-	if _, err := os.Stat(".gitignore"); err != nil {
-		if os.IsNotExist(err) {
-			resp, err := http.Get("https://gitignore.io/api/" +
-				strings.ReplaceAll(languages, " ", ","))
-
-			if err != nil {
-				log.Fatal("Could not connect to gitignore.io server")
-			}
-
-			body, err := ioutil.ReadAll(resp.Body)
-			if err != nil {
-				log.Fatal("Could not read response")
-			}
-
-			err = ioutil.WriteFile(".gitignore", body, 0644)
-			if err != nil {
-				log.Fatal("Unable to create new file.")
-			}
-
-			path, _ := filepath.Abs(".gitignore")
-
-			return path, nil
-		}
-	}
-	return "", errors.New("gitignore file already exists")
 }
