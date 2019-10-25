@@ -10,6 +10,7 @@ import (
 // parseArguments takes the user's input and responds appropriately
 func parseArguments(line string, gitignoreFile *Gitignore) {
 	line = strings.TrimSpace(strings.ToLower(line))
+	*gitignoreFile = checkForGitignore(".gitignore")
 
 	switch {
 	case line == "refresh":

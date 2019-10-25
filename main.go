@@ -2,11 +2,9 @@ package main
 
 import (
 	"bufio"
-	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
-	"net/http"
 	"os"
 	"strings"
 
@@ -58,9 +56,6 @@ func main() {
 		AutoComplete:    completer,
 		InterruptPrompt: "^C",
 		EOFPrompt:       "exit",
-
-		// HistorySearchFold:   true,
-		// FuncFilterInputRune: filterInput,
 	})
 	if err != nil {
 		panic(err)
@@ -99,11 +94,10 @@ func checkForGitignore(path string) Gitignore {
 			return Gitignore{}
 		}
 	}
-	body, _ := ioutil.ReadFile(".gitignore")
-	customRules := parseCustomRules(".gitignore")
+	body, customRules := parseContent(".gitignore")
 	return Gitignore{
 		languages:   currentLangs(".gitignore")(""),
-		content:     string(body),
+		content:     body,
 		customRules: customRules,
 	}
 }
@@ -152,17 +146,20 @@ func currentLangs(path string) func(string) []string {
 	}
 }
 
-func parseCustomRules(path string) []string {
+// parseContent reads the gitignore file and separates the
+// custom rules from the rest of the body
+func parseContent(path string) (string, []string) {
 	file, err := os.Open(path)
 	if err != nil {
 		log.Println("Couldn't parse custom rulesets")
 	}
 	defer file.Close()
 
-	scanner := bufio.NewScanner(file)
 	rules := make([]string, 0)
+	var body strings.Builder
 
-	insideCustom := false
+	scanner := bufio.NewScanner(file)
+	insideCustom := false // We have reached a custom rules block
 
 	for scanner.Scan() {
 		line := scanner.Text()
@@ -172,37 +169,15 @@ func parseCustomRules(path string) []string {
 			continue
 		} else if strings.Contains(line, "# end persist") {
 			insideCustom = false
-			break
+			continue
 		}
 
 		if insideCustom {
-			fmt.Println("FOUND: " + line)
 			rules = append(rules, line)
+		} else {
+			body.WriteString(line + "\n")
 		}
 	}
 
-	return rules
-}
-
-// refreshLanguages downloads a fresh copy of the available languages
-// The language file is saved to ~/.cache/gitignore_languages.txt
-func refreshLanguages(path string) {
-	fmt.Println("Downloading available languages.")
-
-	resp, err := http.Get("https://gitignore.io/api/list")
-	if err != nil {
-		log.Fatal("Could not connect to gitignore.io server")
-	}
-
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		log.Fatal("Could not read response")
-	}
-
-	formatted := strings.ReplaceAll(string(body), "\n", ",")
-
-	err = ioutil.WriteFile(path, []byte(formatted), 0644)
-	if err != nil {
-		log.Fatal("Unable to create new file.")
-	}
+	return body.String(), rules
 }
