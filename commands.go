@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"strings"
 )
@@ -26,7 +27,10 @@ func parseArguments(line string, gitignoreFile *Gitignore) {
 		switch {
 		case strings.HasPrefix(line, "append"):
 			line = strings.TrimSpace(line[6:])
-			os.Remove(".gitignore")
+			err := os.Remove(".gitignore")
+			if err != nil {
+				log.Println(err)
+			}
 			fmt.Println("Old: " + strings.ToLower(strings.Join(gitignoreFile.languages, " ")))
 			gitignoreFile.languages = append(gitignoreFile.languages, strings.Split(line, " ")...)
 			fmt.Println("New: " + strings.ToLower(strings.Join(gitignoreFile.languages, " ")))
@@ -54,12 +58,13 @@ func parseArguments(line string, gitignoreFile *Gitignore) {
 
 // usage displays program instructions
 func usage() {
-	fmt.Print(`commands:
+	fmt.Println(`commands:
 	refresh -- update cache of available languages
 	create -- create new gitignore file (autocomplete with tab)
 	modify -- update an existing gitignore file
 	├── append -- add new languages to gitignore (autocomplete with tab)
 	├── delete -- remove languages from gitignore (autocomplete with tab)
 	├── refresh -- refresh contents of gitignore 
-	remove -- delete gitignore`)
+	remove -- delete gitignore
+	exit -- exit gitignore`)
 }

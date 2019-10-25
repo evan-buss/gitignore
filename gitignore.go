@@ -11,19 +11,19 @@ import (
 	"strings"
 )
 
-// Gitignore holds details about the current status of the gitignore file
+// Gitignore holds the details and contents of the gitignore file
 type Gitignore struct {
-	languages []string
-	content   string
+	languages   []string // Holds the current languages downloaded from API
+	content     string   // Holds the entire content body
+	customRules []string // Holds the user's custom rulesets that shouldn't be overwritten
 }
 
 // getDifference takes a string containing the languages that should be removed
 //   and returns which languages should be kept
-//  Ex) Gitignore contains "Java Intellij Python" -> removeLangs = "Intellij Java"
+//  Ex) Gitignore contains "Java Intellij Python" and input contains "IntelliJ Java";
 //      getDifference returns "Python"
-func (file *Gitignore) getDifference(input string) {
-	// allLangs := currentLangs(".gitignore")("")
-	allLangs := file.languages
+func (gitignore *Gitignore) getDifference(input string) {
+	allLangs := gitignore.languages
 	removeLangs := strings.Split(input, " ")
 
 	sort.Strings(allLangs)
@@ -38,27 +38,16 @@ func (file *Gitignore) getDifference(input string) {
 	fmt.Println("Old: " + strings.ToLower(strings.Join(allLangs, " ")))
 	fmt.Println("New: " + strings.ToLower(strings.Join(output, " ")))
 
-	file.languages = output
-}
-
-// arrayContains determines if the given []string array contains the given value
-func arrayContains(array []string, value string) bool {
-	for _, val := range array {
-		if val == value {
-			return true
-		}
-	}
-	return false
+	gitignore.languages = output
 }
 
 // createGitignore downloads a .gitignore file to the current directory
 // Fails if a .gitignore file already exists.
-func (file *Gitignore) createGitignore() {
+func (gitignore *Gitignore) createGitignore() {
 	if _, err := os.Stat(".gitignore"); err != nil {
 		if os.IsNotExist(err) {
-			languages := strings.Join(file.languages, " ")
-			resp, err := http.Get("https://gitignore.io/api/" +
-				strings.ReplaceAll(languages, " ", ","))
+			languages := strings.Join(gitignore.languages, ",")
+			resp, err := http.Get("https://gitignore.io/api/" + languages)
 
 			if err != nil {
 				log.Fatal("Could not connect to gitignore.io server")
@@ -69,12 +58,26 @@ func (file *Gitignore) createGitignore() {
 				log.Fatal("Could not read response")
 			}
 
-			err = ioutil.WriteFile(".gitignore", body, 0644)
+			file, err := os.Create(".gitignore")
 			if err != nil {
-				log.Fatal("Unable to create new file.")
+				log.Fatal(err)
+			}
+			defer file.Close()
+
+			if len(gitignore.customRules) > 0 {
+				file.WriteString("# start persist\n")
+				for _, line := range gitignore.customRules {
+					file.WriteString(line + "\n")
+				}
+				file.WriteString("# end persist\n")
 			}
 
-			file.content = string(body)
+			_, err = file.Write(body)
+			if err != nil {
+				log.Fatal(err)
+			}
+
+			gitignore.content = string(body)
 
 			path, _ := filepath.Abs(".gitignore")
 
@@ -85,13 +88,13 @@ func (file *Gitignore) createGitignore() {
 	fmt.Println("Error: .gitignore file already exists.")
 }
 
-func (file *Gitignore) remove() {
-
+func (gitignore *Gitignore) remove() {
 	if err := os.Remove(".gitignore"); err != nil {
 		fmt.Println("Couldn't find an existing .gitignore file")
 	} else {
-		file.languages = nil
-		file.content = ""
+		gitignore.languages = nil
+		gitignore.content = ""
+		gitignore.customRules = nil
 		fmt.Println("Removed .gitignore file")
 	}
 }

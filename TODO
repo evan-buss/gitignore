@@ -1,6 +1,7 @@
 Proposed Usage
 
 Future Upgrades
+☐ Rewrite. The code is pretty unorganized and messy. I learned a lot since writing it and it can be condensed and cleaner
 
-- Create a syntax that allows users to modify the gitignore manually
-  - The parser should save their changes between updates
+✔ Create a syntax that allows users to modify the gitignore manually @started(19-10-25 13:50) @done(19-10-25 15:32) @lasted(1h42m23s)
+

@@ -44,14 +44,13 @@ func init() {
 					readline.PcItemDynamic(currentLangs(".gitignore"),
 						readline.PcItemDynamic(currentLangs(".gitignore"))))),
 			readline.PcItem("refresh")),
-		readline.PcItem("remove"))
+		readline.PcItem("remove"),
+		readline.PcItem("exit"))
 }
 
 func main() {
 	checkForLanguageCache(langFilePath)
 	gitignoreFile := checkForGitignore(".gitignore")
-
-	// gitignoreFile := &gitignore{langages: currentLangs(:)}
 
 	l, err := readline.NewEx(&readline.Config{
 		Prompt:          "\033[36mgitignore\033[0m ",
@@ -101,9 +100,11 @@ func checkForGitignore(path string) Gitignore {
 		}
 	}
 	body, _ := ioutil.ReadFile(".gitignore")
+	customRules := parseCustomRules(".gitignore")
 	return Gitignore{
-		languages: currentLangs(".gitignore")(""),
-		content:   string(body),
+		languages:   currentLangs(".gitignore")(""),
+		content:     string(body),
+		customRules: customRules,
 	}
 }
 
@@ -149,6 +150,38 @@ func currentLangs(path string) func(string) []string {
 		}
 		return langs
 	}
+}
+
+func parseCustomRules(path string) []string {
+	file, err := os.Open(path)
+	if err != nil {
+		log.Println("Couldn't parse custom rulesets")
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	rules := make([]string, 0)
+
+	insideCustom := false
+
+	for scanner.Scan() {
+		line := scanner.Text()
+
+		if strings.Contains(line, "# start persist") {
+			insideCustom = true
+			continue
+		} else if strings.Contains(line, "# end persist") {
+			insideCustom = false
+			break
+		}
+
+		if insideCustom {
+			fmt.Println("FOUND: " + line)
+			rules = append(rules, line)
+		}
+	}
+
+	return rules
 }
 
 // refreshLanguages downloads a fresh copy of the available languages
