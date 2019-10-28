@@ -38,5 +38,5 @@ the header and footer comment blocks.
 ```
 # start persist
 [your rules here]
-# done persist
+# end persist
 ```
